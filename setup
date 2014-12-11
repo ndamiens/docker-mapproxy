@@ -1,0 +1,70 @@
+#!/bin/sh
+ROOT=/srv/mapproxy/
+PROD=ppige
+mkdir -p $ROOT
+if [ -f /srv/mapproxy/.setupok ]; then
+	echo "Configuration déjà effectuée."
+	exit;
+fi
+
+mkdir -p $ROOT
+cd $ROOT
+mapproxy-util create -t base-config $PROD
+useradd mapproxy
+usermod -d $ROOT mapproxy
+
+mkdir -v -p $ROOT/$PROD/apache/www
+mapproxy-util create -t wsgi-app -f $ROOT/$PROD/mapproxy.yaml $ROOT/$PROD/apache/www/config.py
+chmod a+x $ROOT/$PROD/apache/www/config.py
+echo "Write apache configuration"
+
+cat > $ROOT/$PROD/apache/apache.conf << EOF
+WSGIScriptAlias /$PROD $ROOT/$PROD/apache/www/config.py
+WSGIDaemonProcess mapproxy user=mapproxy group=mapproxy processes=2 threads=4
+WSGIProcessGroup mapproxy
+
+<Directory $ROOT/$PROD/apache/www>
+  Require all granted
+</Directory>
+EOF
+
+cat > $ROOT/$PROD/mapproxy.yaml << EOF
+services:
+  demo:
+  wms:
+    srs: ['EPSG:4326', 'EPSG:3857', 'EPSG:2154']
+    md:
+      title: PPIGE Ortho 2013 WMS Proxy
+      abstract: Proxy WMS
+
+layers:
+  - name: ortho_2013_npdc
+    title: Proxy XMS ortho 2013 NPDC
+    sources: [cache_ortho_2013_npdc]
+
+caches:
+  cache_ortho_2013_npdc:
+    sources: [src_ortho_2013_npdc]
+
+sources:
+  src_ortho_2013_npdc:
+    type: tile
+    grid: mercatornw
+    url: http://www.ppige-npdc.fr/mapcache/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ortho2013RGB20cm&TILEMATRIXSET=geoportail&TILEMATRIX=%(z)s&TILEROW=%(y)s&TILECOL=%(x)s&FORMAT=%(format)s
+
+grids:
+    webmercator:
+        base: GLOBAL_WEBMERCATOR
+    mercatornw:
+        base: GLOBAL_WEBMERCATOR
+        origin: nw
+
+globals:
+EOF
+
+chown mapproxy:mapproxy -R $ROOT 
+
+ln -s $ROOT/$PROD/apache/apache.conf /etc/apache2/conf-available/mapproxy-$PROD.conf
+a2enconf mapproxy-$PROD
+
+
