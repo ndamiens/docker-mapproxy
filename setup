@@ -2,7 +2,7 @@
 ROOT=/srv/mapproxy/
 PROD=ppige
 mkdir -p $ROOT
-if [ -f /srv/mapproxy/.setupok ]; then
+if [ -f $ROOT/.setupok ]; then
 	echo "Configuration déjà effectuée."
 	exit;
 fi
@@ -67,4 +67,4 @@ chown mapproxy:mapproxy -R $ROOT
 ln -s $ROOT/$PROD/apache/apache.conf /etc/apache2/conf-available/mapproxy-$PROD.conf
 a2enconf mapproxy-$PROD
 
-
+touch $ROOT/.setupok
